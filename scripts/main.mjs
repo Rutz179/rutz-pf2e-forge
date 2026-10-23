@@ -1,5 +1,11 @@
 import { MID, setting, t } from "./util.mjs";
-import { ensureStats, syncBroken } from "./durability.mjs";
+import { blockDestroyed, ensureStats, syncBroken } from "./durability.mjs";
+
+/** A broken-gear setting changed: every character's effects follow (each owner's client does its own). */
+function resyncAll() {
+  if (game.users.activeGM?.id !== game.user.id) return; // one client does it (two would each make an effect)
+  for (const a of game.actors ?? []) if (a.type === "character") syncBroken(a);
+}
 import { installMarks } from "./marks.mjs";
 import { installUpkeep, openUpkeep } from "./upkeep.mjs";
 import { openDurability } from "./ui/durability-app.mjs";
@@ -22,16 +28,22 @@ function registerSettings() {
   s("noticeTo", { name: t("Settings.NoticeTo"), hint: t("Settings.NoticeToHint"), type: String, default: "public",
     choices: { public: t("Settings.NoticePublic"), owners: t("Settings.NoticeOwners"), gm: t("Settings.NoticeGM") } });
   s("brokenArmor", { name: t("Settings.BrokenArmor"), hint: t("Settings.BrokenArmorHint"), type: Boolean, default: true });
-  s("brokenRule", { name: t("Settings.BrokenRule"), hint: t("Settings.BrokenRuleHint"), type: String, default: "raw",
-    choices: { raw: t("Settings.BrokenRaw"), penalty: t("Settings.BrokenPenalty"), clumsy: t("Settings.BrokenClumsy") } });
-  s("wearOn", { name: t("Settings.Wear"), hint: t("Settings.WearHint"), type: Boolean, default: false });
+  s("brokenRule", { name: t("Settings.BrokenRule"), hint: t("Settings.BrokenRuleHint"), type: String, default: "penalty",
+    choices: { penalty: t("Settings.BrokenPenalty"), raw: t("Settings.BrokenRaw"), clumsy: t("Settings.BrokenClumsy") }, onChange: () => resyncAll() });
+  s("brokenPenalty", { name: t("Settings.BrokenPenaltyN"), hint: t("Settings.BrokenPenaltyNHint"), type: Number, default: 1, range: { min: 1, max: 4, step: 1 }, onChange: () => resyncAll() });
+  s("destroyedBlock", { name: t("Settings.Destroyed"), hint: t("Settings.DestroyedHint"), type: Boolean, default: true, onChange: () => resyncAll() });
+  s("wearOn", { name: t("Settings.Wear"), hint: t("Settings.WearHint"), type: Boolean, default: true });
   s("wearMode", { name: t("Settings.WearMode"), hint: t("Settings.WearModeHint"), type: String, default: "events",
     choices: { events: t("Settings.WearEvents"), flat: t("Settings.WearFlat") } });
   s("wearTiming", { name: t("Settings.WearTiming"), hint: t("Settings.WearTimingHint"), type: String, default: "live",
     choices: { live: t("Settings.WearLive"), end: t("Settings.WearEnd") } });
+  s("liveNotice", { name: t("Settings.LiveNotice"), hint: t("Settings.LiveNoticeHint"), type: String, default: "none",
+    choices: { each: t("Settings.LiveEach"), broken: t("Settings.LiveBroken"), none: t("Settings.LiveNone") } });
   s("wearChance", { name: t("Settings.WearChance"), hint: t("Settings.WearChanceHint"), type: Number, default: 5, range: { min: 0, max: 100, step: 1 } });
   s("wearAmount", { name: t("Settings.WearAmount"), hint: t("Settings.WearAmountHint"), type: String, default: "1" });
   s("wearHardness", { name: t("Settings.WearHardness"), hint: t("Settings.WearHardnessHint"), type: Boolean, default: false });
+  s("ammoRecover", { name: t("Settings.Ammo"), hint: t("Settings.AmmoHint"), type: Number, default: 50, range: { min: 0, max: 100, step: 5 } });
+  s("ammoMagic", { name: t("Settings.AmmoMagic"), hint: t("Settings.AmmoMagicHint"), type: Boolean, default: false });
   s("upkeepPopup", { name: t("Settings.Upkeep"), hint: t("Settings.UpkeepHint"), type: String, default: "ask",
     choices: { ask: t("Settings.UpkeepAsk"), always: t("Settings.UpkeepAlways"), off: t("Settings.UpkeepOff") } });
   s("upkeepPublic", { name: t("Settings.UpkeepPublic"), hint: t("Settings.UpkeepPublicHint"), type: Boolean, default: true });
@@ -44,8 +56,8 @@ function registerSettings() {
 function headerV1(sheet, buttons) {
   const actor = sheet.actor ?? sheet.document;
   if (!actor || !["character", "npc"].includes(actor.type) || !(actor.isOwner || game.user.isGM)) return;
-  buttons.unshift({ label: t("Dur.Short"), class: "rpf-dur-open", icon: "fa-solid fa-shield-heart", onclick: () => openDurability(actor) });
-  if (actor.type === "character") buttons.unshift({ label: t("Craft.Short"), class: "rpf-bench-open", icon: "fa-solid fa-hammer", onclick: () => openWorkbench(actor) });
+  buttons.unshift({ label: t("Dur.Short"), class: "rpf-dur-open", icon: "fa-solid fa-shield-heart fa-fw", onclick: () => openDurability(actor) });
+  if (actor.type === "character") buttons.unshift({ label: t("Craft.Short"), class: "rpf-bench-open", icon: "fa-solid fa-hammer fa-fw", onclick: () => openWorkbench(actor) });
 }
 
 function headerV2(app, controls) {
@@ -53,10 +65,10 @@ function headerV2(app, controls) {
   if (actor?.documentName !== "Actor" || !["character", "npc"].includes(actor.type) || !(actor.isOwner || game.user.isGM)) return;
   if (controls.some(c => c.action === "rpfDur")) return;
   app.options.actions ??= {};
-  controls.unshift({ icon: "fa-solid fa-shield-heart", label: t("Dur.Short"), action: "rpfDur", onClick: () => openDurability(actor) });
+  controls.unshift({ icon: "fa-solid fa-shield-heart fa-fw", label: t("Dur.Short"), action: "rpfDur", onClick: () => openDurability(actor) });
   app.options.actions.rpfDur ??= () => openDurability(actor);
   if (actor.type === "character") {
-    controls.unshift({ icon: "fa-solid fa-hammer", label: t("Craft.Short"), action: "rpfBench", onClick: () => openWorkbench(actor) });
+    controls.unshift({ icon: "fa-solid fa-hammer fa-fw", label: t("Craft.Short"), action: "rpfBench", onClick: () => openWorkbench(actor) });
     app.options.actions.rpfBench ??= () => openWorkbench(actor);
   }
 }
@@ -64,6 +76,7 @@ function headerV2(app, controls) {
 Hooks.once("init", registerSettings);
 
 Hooks.once("ready", () => {
+  blockDestroyed();
   if (game.system.id !== "pf2e" && game.system.id !== "sf2e") return;
   installMarks();
   installUpkeep();

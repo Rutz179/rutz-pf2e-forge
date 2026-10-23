@@ -81,7 +81,11 @@
       "BrokeNowLine": "{actor}의 {item}이(가) {state}되었습니다.",
       "NoWear": "닳은 장비는 없습니다.",
       "Refocused": "{who}: 재집중 — 집중 포인트 {n}/{max}",
-      "RefocusLabel": "재집중"
+      "RefocusLabel": "재집중",
+      "WoreNow": "{actor}의 {item}이(가) 닳았습니다 — HP {from} → {to} / {max}",
+      "AmmoSaid": "쏜 탄약을 주워 왔습니다:",
+      "AmmoLine": "{item} {used}발 중 <b>{back}</b>발 회수",
+      "Times": "{n}번"
     },
     "Craft": {
       "Title": "제작",
@@ -183,16 +187,16 @@
       "NoticeOwners": "그 캐릭터의 플레이어와 GM",
       "NoticeGM": "GM만",
       "BrokenRule": "파손된 무기",
-      "BrokenRuleHint": "규칙상 파손된 물건은 제 기능을 못 합니다. 하우스 룰로 페널티만 줄 수도 있습니다.",
-      "BrokenRaw": "규칙대로 (사용 불가 경고)",
-      "BrokenPenalty": "공격 −2 (하우스 룰)",
+      "BrokenRuleHint": "규칙상 파손된 물건은 제 기능을 못 합니다. 기본은 '공격 페널티'(쓸 수는 있지만 서투르게).",
+      "BrokenRaw": "규칙대로 (사용 불가 경고만)",
+      "BrokenPenalty": "공격 페널티 (기본 −1)",
       "BrokenClumsy": "서투름 1 (하우스 룰)",
       "WearMode": "마모 기준",
       "WearModeHint": "‘전투 기록’: 맞은 만큼 갑옷이, 피해를 준 만큼 무기가 굴림. 한 번도 안 맞으면 닳지 않습니다.",
       "WearEvents": "전투 기록 (맞은 횟수·명중 횟수)",
       "WearFlat": "전투마다 한 번씩",
       "WearTiming": "마모 시점",
-      "WearTimingHint": "‘즉시’면 전투 중에도 파손될 수 있습니다.",
+      "WearTimingHint": "‘즉시’(기본): 맞거나 피해를 줄 때 그 자리에서 닳고(토큰 위에 숫자), 전투 중에 파손될 수도 있습니다. 끝나면 요약 한 장. ‘전투가 끝날 때’: 끝나고 한꺼번에.",
       "WearLive": "즉시 (전투 중)",
       "WearEnd": "전투가 끝날 때",
       "WearChanceHint": "맞을 때마다(갑옷)·피해를 줄 때마다(무기) 이 확률(d100)로 1씩 닳습니다. 기본 5%: 6번 맞은 전투면 약 26% 확률로 한 번.",
@@ -203,7 +207,20 @@
       "ClockAuto": "자동 (Days 모듈이 있으면 하루 계획, 없으면 게임 시간)",
       "ClockPlan": "하루 계획의 제작 시간",
       "ClockTime": "게임 시간이 흐를 때",
-      "ClockManual": "직접 (+1일 버튼)"
+      "ClockManual": "직접 (+1일 버튼)",
+      "LiveNotice": "전투 중 마모 알림",
+      "LiveNoticeHint": "‘즉시’ 마모일 때. 기본은 채팅에 안 남기고 전투가 끝난 뒤 요약 한 장만(장비마다 한 줄). 토큰 위에는 늘 숫자가 떠오릅니다.",
+      "LiveEach": "닳을 때마다 채팅에",
+      "LiveBroken": "파손될 때만 채팅에",
+      "LiveNone": "채팅에는 안 남김",
+      "Ammo": "쏜 탄약 회수 확률 (%)",
+      "AmmoHint": "전투 중 쏜 화살·볼트 등을 전투가 끝난 뒤 한 발마다 이 확률로 주워 옵니다(규칙에는 없는 GM 판단). 0이면 끔.",
+      "AmmoMagic": "마법·연금술 탄약도 회수",
+      "AmmoMagicHint": "끄면(기본) 마법·연금술 탄약은 쏘면 사라집니다.",
+      "BrokenPenaltyN": "파손된 무기 공격 페널티",
+      "BrokenPenaltyNHint": "'공격 페널티'일 때 그 무기로 하는 공격 굴림에 붙는 상태 페널티(기본 1 → −1).",
+      "Destroyed": "부서진 장비는 못 씀",
+      "DestroyedHint": "켜면(기본) HP 0이 된 무기로는 공격·피해 굴림이 막히고, 부서진 갑옷·방패는 벗겨집니다."
     },
     "Broken": {
       "Label": "파손: {name}",
@@ -211,13 +228,19 @@
       "Tag": "파손됨.",
       "Clumsy": "파손된 {name} (서투름 1)",
       "NoteRaw": "규칙상 파손된 무기는 제 기능을 못 합니다 — 고칠 때까지 쓰지 않는 것이 원칙입니다(GM 판단).",
-      "NotePenalty": "파손된 무기: 공격 −2 (하우스 룰).",
+      "NotePenalty": "파손된 무기: 공격 −{n}.",
       "NoteClumsy": "파손된 무기: 서투름 1 (하우스 룰).",
       "Desc": {
         "armor": "파손된 방어구는 아이템 보너스는 유지하지만 AC에 상태 페널티를 받습니다(경갑 −1, 중갑 −2, 중장갑 −3).",
         "weapon": "파손된 무기. 규칙상 제 기능을 못 합니다. 설정에 따라 공격 페널티나 서투름이 붙습니다. 수리하면 사라집니다.",
-        "shield": "파손된 방패. 수리하면 사라집니다."
-      }
+        "shield": "파손된 방패. 수리하면 사라집니다.",
+        "gone": "부서진 무기(HP 0). 쓸 수 없고 수리도 안 됩니다."
+      },
+      "GoneTag": "부서짐.",
+      "NoteGone": "부서진 무기는 쓸 수 없습니다.",
+      "GoneEffect": "부서짐: {name}",
+      "Blocked": "{item}은(는) 부서져서 쓸 수 없습니다. 수리할 수도 없습니다(새로 구하거나 GM 판단).",
+      "Off": "{actor}의 {item}이(가) 부서져 벗겨졌습니다 — AC·방패 막기를 주지 않습니다."
     }
   }
 }

@@ -104,12 +104,14 @@ export class Workbench extends foundry.applications.api.ApplicationV2 {
     this._wired = content;
     content.addEventListener("click", ev => this.onClick(ev));
     content.addEventListener("change", ev => this.onChange(ev));
-    content.addEventListener("input", ev => {
-      if (ev.target.dataset.a !== "search") return;
+    const typed = ev => {
+      if (ev.isComposing || ev.target.dataset.a !== "search") return; // Korean IME: wait for the syllable
       this.ui.search = ev.target.value;
       clearTimeout(this._typing);
       this._typing = setTimeout(async () => { await this.render(); const b = this.element.querySelector('[data-a="search"]'); b?.focus(); b?.setSelectionRange(b.value.length, b.value.length); }, 200);
-    });
+    };
+    content.addEventListener("input", typed);
+    content.addEventListener("compositionend", typed);
     content.addEventListener("dragover", ev => ev.preventDefault());
     content.addEventListener("drop", async ev => {
       ev.preventDefault();

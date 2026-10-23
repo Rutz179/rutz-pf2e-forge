@@ -138,15 +138,21 @@ export async function ensureStats(item) {
  * the character for each equipped broken item (it shows on the sheet and the token):
  *   armor   — the AC penalty (always, as written)
  *   weapons — by the GM's choice (setting brokenRule):
+ *     penalty  a status penalty to attacks with it (default −1, setting brokenPenalty) — usable, badly
  *     raw      a reminder on every attack with it ("can't be used normally")
- *     penalty  −2 status penalty to attacks with it (house rule: still usable, badly)
- *     clumsy   clumsy 1 (house rule: −1 to Dex-based checks and DCs)
+ *     clumsy   clumsy 1 (−1 to Dex-based checks and DCs)
  *   shields — the reminder only (PF2e already stops a broken shield's Shield Block bonus).
+ * Destroyed (0 HP) — can't be used at all (setting destroyedBlock, default on):
+ *   weapons  an attack or damage roll with it is stopped before it reaches chat, and a
+ *            "부서짐" effect on the character says why
+ *   armor / shields  taken off (no AC, no Shield Block), with a word in chat
  */
 
 const PENALTY = { light: -1, medium: -2, heavy: -3 };
 // Foundry core's own icon: always there (a guessed icon path shows as a broken image).
 const FALLBACK_ICON = "icons/svg/hazard.svg";
+
+const note2 = (text, predicate) => ({ key: "RollNote", selector: "attack-roll", predicate, text });
 
 function brokenRules(item) {
   const label = t("Broken.Label", { name: item.name });
@@ -156,7 +162,8 @@ function brokenRules(item) {
     const predicate = [`item:id:${item.id}`];
     const mode = setting("brokenRule", "raw");
     const note = text => ({ key: "RollNote", selector: "attack-roll", predicate, text: `<p><strong>${t("Broken.Tag")}</strong> ${t(text)}</p>` });
-    if (mode === "penalty") return [{ key: "FlatModifier", selector: "attack-roll", predicate, type: "status", value: -2, label }, note("Broken.NotePenalty")];
+    const n = Math.max(1, Math.round(Number(setting("brokenPenalty", 1)) || 1));
+    if (mode === "penalty") return [{ key: "FlatModifier", selector: "attack-roll", predicate, type: "status", value: -n, label }, note2(`<p><strong>${t("Broken.Tag")}</strong> ${t("Broken.NotePenalty", { n })}</p>`, predicate)];
     if (mode === "clumsy") return [{ key: "FlatModifier", selector: "dex-based", type: "status", value: -1, label: t("Broken.Clumsy", { name: item.name }) }, note("Broken.NoteClumsy")];
     return [note("Broken.NoteRaw")];
   }
@@ -178,7 +185,17 @@ export function syncBroken(actor) {
 }
 
 async function doSync(actor) {
-  const want = actor.items.filter(i => ["weapon", "armor", "shield"].includes(i.type) && i.isEquipped && stateOf(i) === "broken");
+  // Destroyed armor and shields come off (no AC from what isn't there any more).
+  if (setting("destroyedBlock", true)) {
+    const gone = actor.items.filter(i => ["armor", "shield"].includes(i.type) && i.isEquipped && stateOf(i) === "destroyed");
+    for (const i of gone) {
+      const upd = i.type === "armor" ? { "system.equipped.inSlot": false } : { "system.equipped.carryType": "worn", "system.equipped.handsHeld": 0 };
+      await i.update(upd).catch(() => null);
+      ChatMessage.create({ speaker: ChatMessage.getSpeaker({ actor }), content: `<div class="rpf-card"><i class="fa-solid fa-heart-crack"></i> ${t("Broken.Off", { actor: actor.name, item: i.name })}</div>` }).catch(() => null);
+    }
+  }
+  const want = actor.items.filter(i => ["weapon", "armor", "shield"].includes(i.type) && i.isEquipped
+    && (stateOf(i) === "broken" || (i.type === "weapon" && stateOf(i) === "destroyed" && setting("destroyedBlock", true))));
   const have = actor.itemTypes?.effect?.filter(e => e.getFlag(MID, "brokenItem") || e.getFlag(MID, "brokenArmor")) ?? [];
   const keep = new Map();
   const drop = [];
@@ -190,8 +207,9 @@ async function doSync(actor) {
   if (drop.length) await actor.deleteEmbeddedDocuments("Item", drop);
   const creates = [];
   for (const item of want) {
-    const rules = brokenRules(item);
-    const name = t("Broken.Effect", { name: item.name });
+    const destroyed = stateOf(item) === "destroyed";
+    const rules = destroyed ? [note2(`<p><strong>${t("Broken.GoneTag")}</strong> ${t("Broken.NoteGone")}</p>`, [`item:id:${item.id}`])] : brokenRules(item);
+    const name = t(destroyed ? "Broken.GoneEffect" : "Broken.Effect", { name: item.name });
     const eff = keep.get(item.id);
     if (eff) {
       if (eff.name !== name || JSON.stringify(eff.system?.rules ?? []) !== JSON.stringify(rules)) await eff.update({ name, "system.rules": rules });
@@ -200,11 +218,29 @@ async function doSync(actor) {
     creates.push({
       type: "effect", name, img: item.img || FALLBACK_ICON,
       system: { rules, duration: { value: -1, unit: "unlimited", expiry: null, sustained: false }, tokenIcon: { show: true },
-        description: { value: `<p>${t(`Broken.Desc.${item.type}`)}</p>` } },
+        description: { value: `<p>${t(destroyed ? "Broken.Desc.gone" : `Broken.Desc.${item.type}`)}</p>` } },
       flags: { [MID]: { brokenItem: item.id } }
     });
   }
   if (creates.length) await actor.createEmbeddedDocuments("Item", creates);
+}
+
+/**
+ * A destroyed weapon can't be used: its attack and damage rolls are stopped before they reach chat
+ * (on the client that rolls — the player's own).
+ */
+export function blockDestroyed() {
+  Hooks.on("preCreateChatMessage", doc => {
+    if (!setting("destroyedBlock", true)) return;
+    const ctx = doc.flags?.pf2e?.context;
+    if (!ctx || !["attack-roll", "damage-roll"].includes(ctx.type)) return;
+    const uuid = doc.flags?.pf2e?.origin?.uuid;
+    let item = null;
+    try { item = uuid ? fromUuidSync(uuid) : null; } catch (_) { item = null; }
+    if (item?.type !== "weapon" || stateOf(item) !== "destroyed") return;
+    ui.notifications.warn(t("Broken.Blocked", { item: item.name }));
+    return false;
+  });
 }
 
 /** Older name, kept for the other modules that call it. */

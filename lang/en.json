@@ -81,7 +81,11 @@
       "BrokeNowLine": "{actor}'s {item} is now {state}.",
       "NoWear": "No gear wore down.",
       "Refocused": "{who}: Refocus — focus points {n}/{max}",
-      "RefocusLabel": "Refocus"
+      "RefocusLabel": "Refocus",
+      "WoreNow": "{actor}'s {item} wore down — HP {from} → {to} / {max}",
+      "AmmoSaid": "Ammunition picked up:",
+      "AmmoLine": "{item}: <b>{back}</b> of {used} recovered",
+      "Times": "{n} times"
     },
     "Craft": {
       "Title": "Crafting",
@@ -183,16 +187,16 @@
       "NoticeOwners": "the character's players and the GM",
       "NoticeGM": "GM only",
       "BrokenRule": "Broken weapons",
-      "BrokenRuleHint": "By the rules a broken item can't be used normally. A house rule may give only a penalty.",
-      "BrokenRaw": "rules as written (can't be used)",
-      "BrokenPenalty": "−2 to attacks (house rule)",
+      "BrokenRuleHint": "By the rules a broken item doesn't work. Default: an attack penalty (usable, badly).",
+      "BrokenRaw": "As written (a 'can't be used' reminder only)",
+      "BrokenPenalty": "Attack penalty (default −1)",
       "BrokenClumsy": "clumsy 1 (house rule)",
       "WearMode": "Wear by",
       "WearModeHint": "'Fight log': armor rolls each time its wearer is hit, a weapon each time it deals damage. No hits, no wear.",
       "WearEvents": "fight log (hits taken / hits dealt)",
       "WearFlat": "once per fight",
       "WearTiming": "When",
-      "WearTimingHint": "'Live' lets gear break in the middle of a fight.",
+      "WearTimingHint": "'Live' (default): gear wears the moment it's hit or deals damage (a number over the token) and can break mid-fight; a summary at the end. 'At the end': all at once afterwards.",
       "WearLive": "live (during the fight)",
       "WearEnd": "at the end of the fight",
       "WearChanceHint": "Rolled (d100) per hit taken (armor) or damage dealt (weapon). Default 5%: six hits in a fight ≈ 26% for one point.",
@@ -203,7 +207,20 @@
       "ClockAuto": "auto (day planner with Rutz's PF2e Days, else the world clock)",
       "ClockPlan": "the day planner's Craft hours",
       "ClockTime": "the world clock",
-      "ClockManual": "by hand (+1 day)"
+      "ClockManual": "by hand (+1 day)",
+      "LiveNotice": "Wear notices in a fight",
+      "LiveNoticeHint": "With live wear. Default: nothing in chat until the summary after the fight (one line per piece of gear). The number always pops off the token.",
+      "LiveEach": "in chat every time",
+      "LiveBroken": "in chat only when it breaks",
+      "LiveNone": "not in chat",
+      "Ammo": "Spent ammunition recovered (%)",
+      "AmmoHint": "After a fight each arrow, bolt … fired is found again with this chance (not in the rules — the GM's call). 0 = off.",
+      "AmmoMagic": "Recover magical and alchemical ammunition too",
+      "AmmoMagicHint": "Off (default): those are used up when fired.",
+      "BrokenPenaltyN": "Broken weapon attack penalty",
+      "BrokenPenaltyNHint": "With 'Attack penalty': the status penalty on attack rolls with it (default 1 → −1).",
+      "Destroyed": "Destroyed gear can't be used",
+      "DestroyedHint": "On (default): attack and damage rolls with a weapon at 0 HP are stopped, destroyed armor and shields come off."
     },
     "Broken": {
       "Label": "Broken: {name}",
@@ -211,13 +228,19 @@
       "Tag": "Broken.",
       "Clumsy": "Broken {name} (clumsy 1)",
       "NoteRaw": "A broken weapon can't be used for its normal function — by the rules it shouldn't be used until repaired (GM's call).",
-      "NotePenalty": "Broken weapon: −2 to attacks (house rule).",
+      "NotePenalty": "Broken weapon: −{n} to attack.",
       "NoteClumsy": "Broken weapon: clumsy 1 (house rule).",
       "Desc": {
         "armor": "Broken armor keeps its item bonus but takes a status penalty to AC (−1 light, −2 medium, −3 heavy).",
         "weapon": "Broken weapon: can't be used normally by the rules; a penalty or clumsy by the setting. Gone when repaired.",
-        "shield": "Broken shield. Gone when repaired."
-      }
+        "shield": "Broken shield. Gone when repaired.",
+        "gone": "A destroyed weapon (0 HP). It can't be used or repaired."
+      },
+      "GoneTag": "Destroyed.",
+      "NoteGone": "A destroyed weapon can't be used.",
+      "GoneEffect": "Destroyed: {name}",
+      "Blocked": "{item} is destroyed and can't be used (nor repaired).",
+      "Off": "{actor}'s {item} is destroyed and comes off — no AC, no Shield Block."
     }
   }
 }

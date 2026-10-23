@@ -44,11 +44,32 @@ async function rollWear(actor, item, combatId, { live }) {
   if (!worn.has(combatId)) worn.set(combatId, []);
   worn.get(combatId).push(row);
   await syncBrokenArmor(actor);
+  if (!live) return;
+  // Live: a number pops off the token, and (setting) a line in chat.
+  floatOff(actor, item, hpOf(item).value - before);
+  const broke = ["broken", "destroyed"].includes(state) && !["broken", "destroyed"].includes(stateOfValue(item, before));
+  if (!broke && setting("liveNotice", "none") === "each") {
+    await ChatMessage.create({ whisper: whisperFor(actor), speaker: ChatMessage.getSpeaker({ actor }),
+      content: `<div class="rpf-card dur live ${state}"><p><i class="fa-solid fa-shield-halved"></i> ${t("Upkeep.WoreNow", { actor: esc(actor.name), item: esc(item.name), from: before, to: hpOf(item).value, max: hpOf(item).max })}${state === "damaged" ? "" : ` · <b>${esc(stateLabel(state))}</b>`}</p></div>` });
+  }
   // Something broke in the middle of the fight: say so now.
-  if (live && ["broken", "destroyed"].includes(state) && !["broken", "destroyed"].includes(stateOfValue(item, before))) {
+  if (broke && setting("liveNotice", "none") !== "none") {
     await ChatMessage.create({ whisper: whisperFor(actor), speaker: ChatMessage.getSpeaker({ actor }),
       content: `<div class="rpf-card dur ${state}"><header><i class="fa-solid fa-link-slash"></i> <b>${t("Upkeep.BrokeNow")}</b></header><p>${t("Upkeep.BrokeNowLine", { actor: esc(actor.name), item: esc(item.name), state: esc(stateLabel(state)) })}</p></div>` });
   }
+}
+
+/** "🛡 −1" floating up from the character's token (everyone sees it). */
+function floatOff(actor, item, delta) {
+  try {
+    const token = actor.getActiveTokens?.()[0];
+    if (!token || !canvas?.interface?.createScrollingText) return;
+    const icon = item.type === "armor" ? "🛡" : item.type === "shield" ? "🛡" : "⚔";
+    canvas.interface.createScrollingText(token.center, `${icon} ${item.name} ${delta}`, {
+      anchor: CONST.TEXT_ANCHOR_POINTS.TOP, direction: CONST.TEXT_ANCHOR_POINTS.TOP, distance: token.h * 0.9,
+      fontSize: 22, fill: 0xd9a441, stroke: 0x000000, strokeThickness: 4, jitter: 0.25, duration: 2200
+    });
+  } catch (_) { /* cosmetic */ }
 }
 
 function stateOfValue(item, value) {
@@ -71,7 +92,99 @@ async function flatWear(actors, combatId) {
   }
 }
 
+/* ---------------- ammunition picked up after the fight ---------------- */
+/*
+ * Every arrow, bolt, sling bullet … a party character spends while a fight runs is counted (the
+ * attacker's client marks how many there were, the GM's client keeps the tally). When the fight ends
+ * each one is found again with the setting's chance (50% by default; magical and alchemical
+ * ammunition is used up by default). The rules have no recovery rule — it's the GM's call.
+ */
+const spent = new Map(); // combat id → Map(key → { actorId, itemId, name, img, used, source })
+
+function isAmmo(item) {
+  if (!item) return false;
+  if (item.type === "ammo") return true;
+  return item.type === "consumable" && ["ammo", "ammunition"].includes(item.system?.category);
+}
+
+function recoverable(item) {
+  const traits = item.system?.traits?.value ?? [];
+  if (setting("ammoMagic", false)) return true;
+  return !traits.includes("magical") && !traits.includes("alchemical");
+}
+
+function fightOf(actor) {
+  const c = game.combat;
+  return c?.started && actor?.hasPlayerOwner && c.combatants.some(x => x.actor?.id === actor.id) ? c : null;
+}
+
+function noteSpent(item, used, source = null) {
+  const combat = fightOf(item.actor);
+  if (!combat || used <= 0 || !recoverable(item)) return;
+  if (!spent.has(combat.id)) spent.set(combat.id, new Map());
+  const key = `${item.actor.id}|${item.sourceId ?? item._stats?.compendiumSource ?? item.name}`;
+  const row = spent.get(combat.id).get(key) ?? { actorId: item.actor.id, itemId: item.id, name: item.name, img: item.img, used: 0, source: null };
+  row.used += used;
+  row.itemId = item.id;
+  if (source) row.source = source;
+  spent.get(combat.id).set(key, row);
+}
+
+async function recoverAmmo(combatId) {
+  const rows = [...(spent.get(combatId)?.values() ?? [])];
+  spent.delete(combatId);
+  const chance = Math.max(0, Math.min(100, Number(setting("ammoRecover", 50)) || 0));
+  const out = [];
+  if (!chance) return out;
+  for (const r of rows) {
+    let back = 0;
+    for (let i = 0; i < r.used; i++) if (Math.random() * 100 < chance) back++;
+    const actor = game.actors.get(r.actorId);
+    if (actor && back) {
+      const item = actor.items.get(r.itemId) ?? actor.items.find(i => isAmmo(i) && i.name === r.name);
+      if (item) await item.update({ "system.quantity": (item.system.quantity ?? 0) + back });
+      else if (r.source) {
+        const src = foundry.utils.deepClone(r.source);
+        delete src._id;
+        src.system.quantity = back;
+        await actor.createEmbeddedDocuments("Item", [src]);
+      } else back = 0;
+    }
+    out.push({ actor: actor?.name ?? "?", name: r.name, used: r.used, back });
+  }
+  return out;
+}
+
 export function installUpkeep() {
+  // Ammunition spent in a fight: the attacker's client notes the count before it changes …
+  Hooks.on("preUpdateItem", (item, changes, options) => {
+    if (!isAmmo(item) || !fightOf(item.actor)) return;
+    const q = foundry.utils.getProperty(changes, "system.quantity");
+    if (q !== undefined) options[`${MID}AmmoBefore`] = item.system?.quantity ?? 0;
+  });
+  Hooks.on("preDeleteItem", (item, options) => {
+    if (!isAmmo(item) || !fightOf(item.actor)) return;
+    options[`${MID}AmmoSource`] = item.toObject();
+    options[`${MID}AmmoLeft`] = item.system?.quantity ?? 0;
+  });
+  // … and the GM's client keeps the tally.
+  Hooks.on("updateItem", (item, changes, options) => {
+    if (!isMainGM() || !isAmmo(item)) return;
+    const before = options?.[`${MID}AmmoBefore`];
+    const now = item.system?.quantity ?? 0;
+    if (before !== undefined && now < before) noteSpent(item, before - now, item.toObject());
+  });
+  Hooks.on("deleteItem", (item, options) => {
+    if (!isMainGM() || !isAmmo(item)) return;
+    const source = options?.[`${MID}AmmoSource`];
+    if (!source) return;
+    noteSpent(item, Number(options?.[`${MID}AmmoLeft`] ?? 0) || 0, source); // the last ones, if it went straight to zero
+    // keep the source so a used-up stack can come back
+    const combat = fightOf(item.actor);
+    const row = combat && [...(spent.get(combat.id)?.values() ?? [])].find(r => r.itemId === item.id);
+    if (row) row.source = source;
+  });
+
   // A character lost Hit Points in a fight: its armor takes the hit.
   Hooks.on("preUpdateActor", (actor, changes, options) => {
     const hp = foundry.utils.getProperty(changes, "system.attributes.hp.value");
@@ -106,18 +219,26 @@ export function installUpkeep() {
         await rollWear(a, a?.items.get(ev.itemId), combat.id, { live: false });
       }
     }
+    const ammo = await recoverAmmo(combat.id);
     const list = worn.get(combat.id) ?? [];
     pending.delete(combat.id);
     worn.delete(combat.id);
     lastFight = { actors: actors.map(a => a.id), wear: list };
     const mode = setting("upkeepPopup", "ask");
-    if (!list.length && mode !== "ask") { if (mode === "always") openUpkeep(lastFight); return; }
+    if (!list.length && !ammo.length && mode !== "ask") { if (mode === "always") openUpkeep(lastFight); return; }
     // One summary card (no card per item).
-    const lines = list.map(w => `<li>${esc(w.actor)}: ${esc(w.item)} HP ${w.from} → <b>${w.to}</b>${["broken", "destroyed"].includes(w.state) ? ` <b class="warn">${esc(stateLabel(w.state))}</b>` : ""}</li>`).join("");
+    // One line per piece of gear: how much it lost over the whole fight.
+    const merged = [];
+    for (const w of list) {
+      const m = merged.find(x => x.actorId === w.actorId && x.item === w.item);
+      if (m) { m.to = w.to; m.state = w.state; m.times += 1; } else merged.push({ ...w, times: 1 });
+    }
+    const lines = merged.map(w => `<li>${esc(w.actor)}: ${esc(w.item)} HP ${w.from} → <b>${w.to}</b>${w.times > 1 ? ` <small>(${t("Upkeep.Times", { n: w.times })})</small>` : ""}${["broken", "destroyed"].includes(w.state) ? ` <b class="warn">${esc(stateLabel(w.state))}</b>` : ""}</li>`).join("");
     await ChatMessage.create({
       whisper: setting("upkeepPublic", true) ? [] : game.users.filter(u => u.isGM).map(u => u.id),
       content: `<div class="rpf-card upkeep"><header><i class="fa-solid fa-campground"></i> <b>${t("Upkeep.Title")}</b></header>
         ${list.length ? `<p>${t("Upkeep.WearSaid")}</p><ul>${lines}</ul>` : `<p>${t("Upkeep.NoWear")}</p>`}
+        ${ammo.length ? `<p><i class="fa-solid fa-bullseye"></i> ${t("Upkeep.AmmoSaid")}</p><ul>${ammo.map(a => `<li>${esc(a.actor)}: ${t("Upkeep.AmmoLine", { item: esc(a.name), used: a.used, back: a.back })}</li>`).join("")}</ul>` : ""}
         ${mode !== "off" ? `<button type="button" data-rpf-upkeep="1"><i class="fa-solid fa-clipboard-list"></i> ${t("Upkeep.Open")}</button>` : ""}</div>`,
       flags: { [MID]: { upkeep: lastFight } }
     });

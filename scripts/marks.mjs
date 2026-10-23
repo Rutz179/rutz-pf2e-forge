@@ -48,7 +48,7 @@ export function installMarks() {
   Hooks.on("renderActorSheetV2", marks);
   Hooks.on("preUpdateItem", (item, changes, options) => {
     if (!hpOf(item).max) return;
-    options[MID] = { ...(options[MID] ?? {}), hpBefore: hpOf(item).value };
+    options[MID] = { ...(options[MID] ?? {}), hpBefore: hpOf(item).value, maxBefore: hpOf(item).max };
   });
   Hooks.on("updateItem", async (item, changes, options, userId) => {
     if (userId !== game.user.id) return;
@@ -58,6 +58,10 @@ export function installMarks() {
     if (before === undefined || !actor || options?.[MID]?.quiet || !setting("notice", true) || actor.getFlag?.("rutz-pf2e-shop", "shop")) return;
     const h = hpOf(item);
     if (h.value >= before) return;
+    // Real damage lowers the value, not the maximum. A maximum that changed (or vanished, e.g. a stack of
+    // ammunition merged by a purchase, or an item without Hit Points of its own) is not "damage".
+    if (!h.max || h.max !== options?.[MID]?.maxBefore) return;
+    if (!["weapon", "armor", "shield", "equipment"].includes(item.type)) return;
     const st = stateOf(item);
     const state = ["broken", "destroyed"].includes(st) ? `<p class="warn"><b>${esc(stateLabel(st))}</b> — ${t(`NoticeState.${st}`)}</p>` : "";
     await ChatMessage.create({
