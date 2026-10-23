@@ -49,7 +49,7 @@ export class Workbench extends foundry.applications.api.ApplicationV2 {
     const a = this.actor;
     const projects = projectsOf(a).filter(p => p.active);
     const n = this.ui.days;
-    const dayButtons = `<button type="button" data-a="day" data-n="1">+1${t("Craft.Day")}</button>${n > 1 ? `<button type="button" data-a="day" data-n="${n}">+${n}${t("Craft.Day")}</button>` : ""}`;
+    const dayButtons = `<button type="button" data-a="day" data-n="1">${t("Craft.AddDay")}</button>${n > 1 ? `<button type="button" data-a="day" data-n="${n}">${t("Craft.AddDays", { n })}</button>` : ""}`;
     const pRows = projects.map(p => {
       const phase = p.phase ?? "work";
       const done = phase === "work" ? p.materials + p.progress : 0;
@@ -78,7 +78,7 @@ export class Workbench extends foundry.applications.api.ApplicationV2 {
       pickHtml = `<header><img src="${esc(pick.img)}" alt=""><div><h3>${esc(pick.name)}</h3><small>${t("Craft.Level", { n: pv.level })} · DC ${pv.dc}</small></div></header>
         <div class="facts big"><div><span>${t("Craft.Price")}</span><b>${formatCp(pv.price)}</b></div><div><span>${t("Craft.Materials")}</span><b>${formatCp(pv.materials)}</b></div>
           <div><span>${t("Craft.PerDay")}</span><b>${formatCp(pv.perDay)}</b><small>${t("Craft.CritPer", { n: formatCp(pv.perDayCrit) })}</small></div>
-          <div><span>${t("Craft.FreeIn")}</span><b>${pv.perDay ? Math.ceil((pv.price - pv.materials) / pv.perDay) : "—"}${t("Craft.Day")}</b></div></div>
+          <div><span>${t("Craft.FreeIn")}</span><b>${t("Craft.InDays", { n: pv.perDay ? Math.ceil((pv.price - pv.materials) / pv.perDay) : "—" })}</b></div></div>
         ${pv.problems.length ? `<ul class="warn">${pv.problems.map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}
         <p class="rpf-hint">${t("Craft.SetupHint", { n: pv.setupDays })}</p>
         ${clockHint()}

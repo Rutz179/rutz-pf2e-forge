@@ -1,4 +1,5 @@
 import { MID, setting, t } from "./util.mjs";
+import { PLUS } from "./edition.mjs";
 import { blockDestroyed, ensureStats, syncBroken } from "./durability.mjs";
 
 /** A broken-gear setting changed: every character's effects follow (each owner's client does its own). */
@@ -7,10 +8,12 @@ function resyncAll() {
   for (const a of game.actors ?? []) if (a.type === "character") syncBroken(a);
 }
 import { installMarks } from "./marks.mjs";
-import { installUpkeep, openUpkeep } from "./upkeep.mjs";
 import { openDurability } from "./ui/durability-app.mjs";
+// @plus — wear in combat, the upkeep window, crafting projects (Plus edition)
+import { installUpkeep, openUpkeep } from "./upkeep.mjs";
 import { openWorkbench } from "./ui/workbench.mjs";
 import { abandonProject, checkProject, clockMode, finishProject, projectsOf, startProject, workAll, workByClock, workDays } from "./crafting.mjs";
+// @end-plus
 
 /* ======================================================================== *
  * Rutz's PF2e Forge — item durability and crafting projects.
@@ -32,6 +35,7 @@ function registerSettings() {
     choices: { penalty: t("Settings.BrokenPenalty"), raw: t("Settings.BrokenRaw"), clumsy: t("Settings.BrokenClumsy") }, onChange: () => resyncAll() });
   s("brokenPenalty", { name: t("Settings.BrokenPenaltyN"), hint: t("Settings.BrokenPenaltyNHint"), type: Number, default: 1, range: { min: 1, max: 4, step: 1 }, onChange: () => resyncAll() });
   s("destroyedBlock", { name: t("Settings.Destroyed"), hint: t("Settings.DestroyedHint"), type: Boolean, default: true, onChange: () => resyncAll() });
+  // @plus
   s("wearOn", { name: t("Settings.Wear"), hint: t("Settings.WearHint"), type: Boolean, default: true });
   s("wearMode", { name: t("Settings.WearMode"), hint: t("Settings.WearModeHint"), type: String, default: "events",
     choices: { events: t("Settings.WearEvents"), flat: t("Settings.WearFlat") } });
@@ -51,13 +55,16 @@ function registerSettings() {
     choices: { auto: t("Settings.ClockAuto"), plan: t("Settings.ClockPlan"), time: t("Settings.ClockTime"), manual: t("Settings.ClockManual") } });
   s("dailyRate", { name: t("Settings.DailyRate"), hint: t("Settings.DailyRateHint"), type: Number, default: 1, range: { min: 0.25, max: 5, step: 0.25 } });
   s("setupDays", { name: t("Settings.SetupDays"), hint: t("Settings.SetupDaysHint"), type: Number, default: -1, range: { min: -1, max: 30, step: 1 } });
+  // @end-plus
 }
 
 function headerV1(sheet, buttons) {
   const actor = sheet.actor ?? sheet.document;
   if (!actor || !["character", "npc"].includes(actor.type) || !(actor.isOwner || game.user.isGM)) return;
   buttons.unshift({ label: t("Dur.Short"), class: "rpf-dur-open", icon: "fa-solid fa-shield-heart fa-fw", onclick: () => openDurability(actor) });
+  // @plus
   if (actor.type === "character") buttons.unshift({ label: t("Craft.Short"), class: "rpf-bench-open", icon: "fa-solid fa-hammer fa-fw", onclick: () => openWorkbench(actor) });
+  // @end-plus
 }
 
 function headerV2(app, controls) {
@@ -67,10 +74,12 @@ function headerV2(app, controls) {
   app.options.actions ??= {};
   controls.unshift({ icon: "fa-solid fa-shield-heart fa-fw", label: t("Dur.Short"), action: "rpfDur", onClick: () => openDurability(actor) });
   app.options.actions.rpfDur ??= () => openDurability(actor);
+  // @plus
   if (actor.type === "character") {
     controls.unshift({ icon: "fa-solid fa-hammer fa-fw", label: t("Craft.Short"), action: "rpfBench", onClick: () => openWorkbench(actor) });
     app.options.actions.rpfBench ??= () => openWorkbench(actor);
   }
+  // @end-plus
 }
 
 Hooks.once("init", registerSettings);
@@ -79,7 +88,9 @@ Hooks.once("ready", () => {
   blockDestroyed();
   if (game.system.id !== "pf2e" && game.system.id !== "sf2e") return;
   installMarks();
+  // @plus
   installUpkeep();
+  // @end-plus
   Hooks.on("getActorSheetHeaderButtons", headerV1);
   Hooks.on("getHeaderControlsApplicationV2", headerV2);
   // New weapons and armor on a character get their material's Hit Points.
@@ -87,14 +98,17 @@ Hooks.once("ready", () => {
     if (userId !== game.user.id || !setting("autoStats", true) || !["character", "npc", "familiar"].includes(item.actor?.type)) return;
     if (await ensureStats(item)) await syncBroken(item.actor);
   });
+  game.rutzForge = { durability: openDurability, edition: PLUS ? "plus" : "lite" };
+  // @plus
   // Whatever moved the clock (Days, the PF2e world clock, a calendar module), the workbench shows it.
   const benchRefresh = foundry.utils.debounce(() => foundry.applications.instances.get("rpf-workbench")?.render(), 150);
   Hooks.on("updateWorldTime", async () => { await workByClock(); benchRefresh(); });
   Hooks.on("updateActor", (actor, changes) => { if (foundry.utils.hasProperty(changes, `flags.${MID}`)) benchRefresh(); });
-  game.rutzForge = {
-    durability: openDurability, workbench: openWorkbench, upkeep: openUpkeep,
+  Object.assign(game.rutzForge, {
+    workbench: openWorkbench, upkeep: openUpkeep,
     projects: projectsOf, start: startProject, check: checkProject, work: workDays, workAll, finish: finishProject, abandon: abandonProject, clockMode
-  };
+  });
+  // @end-plus
   Hooks.callAll("rutzForgeReady", game.rutzForge);
   console.log(`${MID} | ready`);
 });
