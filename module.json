@@ -2,7 +2,7 @@
   "id": "rutz-pf2e-forge",
   "title": "Rutz's PF2e Forge",
   "description": "PF2e 내구도와 제작 — 인벤토리에서 바로 보이는 장비 내구도, 재료별 경도·HP, 수리, 전투 후 정비(마모·XP), 진행도가 보이는 제작 프로젝트. Item durability and crafting projects for PF2e.",
-  "version": "0.2.8",
+  "version": "0.3.0",
   "compatibility": { "minimum": "13", "verified": "14" },
   "authors": [{ "name": "Rutz (rutz179)" }],
   "relationships": { "systems": [{ "id": "pf2e", "type": "system" }] },
